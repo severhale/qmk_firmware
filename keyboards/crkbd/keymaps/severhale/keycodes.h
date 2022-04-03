@@ -5,7 +5,6 @@ enum layers {
     _NAV,
     _SYM,
     _COLEMAK,
-    _SHIFT,
     _BSP,
     _NUM,
 };
