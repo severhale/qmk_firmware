@@ -91,6 +91,8 @@ uint32_t last_encoder_activity_elapsed(void); // Number of milliseconds since th
 
 uint32_t get_matrix_scan_rate(void);
 
+void process_oled(uint8_t row, uint8_t col, bool pressed);
+
 #ifdef __cplusplus
 }
 #endif

@@ -434,6 +434,9 @@ void switch_events(uint8_t row, uint8_t col, bool pressed) {
 #if defined(RGB_MATRIX_ENABLE)
     process_rgb_matrix(row, col, pressed);
 #endif
+#if defined(OLED_ENABLE)
+    process_oled(row, col, pressed);
+#endif
 }
 
 /** \brief Perform scan of keyboard matrix
