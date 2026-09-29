@@ -2,6 +2,10 @@
 
 #include<stdlib.h>
 
+#ifdef SPLIT_KEYBOARD
+#    include "split_common/transactions.h"
+#endif
+
 #define cellSize 4
 #define width OLED_DISPLAY_WIDTH/cellSize
 #define height OLED_DISPLAY_HEIGHT/cellSize
@@ -132,3 +136,34 @@ bool oled_task_user(void) {
 
 	return false;
 }
+
+#ifdef SPLIT_KEYBOARD
+// process_record_user runs only on the master half, so keypresses never
+// reach the slave's animation state. The master broadcasts a monotonic
+// count and the slave replays the delta locally, keeping both OLEDs
+// reacting no matter which half holds the USB cable.
+static uint8_t keypress_count = 0;
+
+void keypress_sync_slave_handler(uint8_t in_size, const void *in_data, uint8_t out_size, void *out_data) {
+	uint8_t now = *(const uint8_t *)in_data;
+	uint8_t delta = now - keypress_count;
+	keypress_count = now;
+	if (delta) {
+		queuedUpdates += delta;
+		lastKeyPress = timer_read();
+	}
+}
+
+void keyboard_post_init_user(void) {
+	transaction_register_rpc(PUT_KEYPRESS_COUNT, keypress_sync_slave_handler);
+}
+
+void housekeeping_task_user(void) {
+	if (is_keyboard_master()) {
+		static uint8_t last_sent = 0;
+		if (keypress_count != last_sent && transaction_rpc_send(PUT_KEYPRESS_COUNT, sizeof(keypress_count), &keypress_count)) {
+			last_sent = keypress_count;
+		}
+	}
+}
+#endif

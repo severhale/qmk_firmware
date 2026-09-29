@@ -13,6 +13,15 @@
 #define PERMISSIVE_HOLD
 #define CHORDAL_HOLD
 
+// F+letter one-handed ⌘ chords (see combos in keymap.c). "ft"/"fs" are
+// common bigrams, so those two combos must be held deliberately.
+#define COMBO_TERM 50
+#define COMBO_HOLD_TERM 200
+#define COMBO_MUST_HOLD_PER_COMBO
+
+// RPC channel syncing the master's keypress count to the slave OLED
+#define SPLIT_TRANSACTION_IDS_USER PUT_KEYPRESS_COUNT
+
 // #define NO_ACTION_ONESHOT
 
 #ifdef AUDIO_ENABLE

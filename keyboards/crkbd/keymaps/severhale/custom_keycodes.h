@@ -1,10 +1,14 @@
 #pragma once
 
+// Colemak must sit below NAV/SYM: QMK resolves each keypress against
+// the highest active layer, so a toggled Colemak layered above NAV would
+// shadow the NAV-layer TG(_COLEMAK) toggle (and NAV/SYM keys generally)
+// with its own letters — Colemak could be switched on but never off.
 enum layers {
     _QWERTY,
+    _COLEMAK,
     _NAV,
     _SYM,
-    _COLEMAK,
     _NUM,
 };
 

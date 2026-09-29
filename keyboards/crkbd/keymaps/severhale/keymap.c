@@ -21,6 +21,19 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
   ),
 
+  // Colemak-DH matrix; ESC takes the / slot (slash lives on the SYM layer)
+  [_COLEMAK] = LAYOUT_split_3x6_3(
+  //|-----------------------------------------------------|                    |-----------------------------------------------------|
+     _______, KC_Q,    KC_W,    KC_F,    KC_P,    KC_B,                         KC_J,    KC_L,    KC_U,    KC_Y,    KC_SCLN, _______,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+     _______, KC_A,    KC_R,    KC_S,    KC_T,    KC_G,                         KC_M,    KC_N,    KC_E,    KC_I,    KC_O,    _______,
+  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
+     _______, KC_Z,    KC_X,    KC_C,    KC_D,    KC_V,                         KC_K,    KC_H,    KC_COMM, KC_DOT,  KC_ESC, _______,
+  //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
+                                         XXXXXXX, _______, _______,    _______, _______, XXXXXXX
+                                      //|--------------------------|  |--------------------------|
+  ),
+
   // Hold NAV + space = enter; backspace stays backspace (falls through)
   [_NAV] = LAYOUT_split_3x6_3(
   //|-----------------------------------------------------|                    |-----------------------------------------------------|
@@ -47,18 +60,6 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                                       //|--------------------------|  |--------------------------|
   ),
 
-  [_COLEMAK] = LAYOUT_split_3x6_3(
-  //|-----------------------------------------------------|                    |-----------------------------------------------------|
-     _______, KC_Q,    KC_W,    KC_F,    KC_P,    KC_B,                         KC_J,    KC_L,    KC_U,    KC_Y,    KC_SCLN, _______,
-  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
-     _______, KC_A,    KC_R,    KC_S,    KC_T,    KC_G,                         KC_M,    KC_N,    KC_E,    KC_I,    KC_O,    _______,
-  //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
-     _______, KC_Z,    KC_X,    KC_C,    KC_D,    KC_V,                         KC_K,    KC_H,    KC_COMM, KC_DOT,  KC_SLSH, _______,
-  //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-                                         XXXXXXX, _______, _______,    _______, _______, XXXXXXX
-                                      //|--------------------------|  |--------------------------|
-  ),
-
   [_NUM] = LAYOUT_split_3x6_3(
   //|-----------------------------------------------------|                    |-----------------------------------------------------|
      _______, _______, _______, _______, _______, _______,                      _______, _______, _______, _______, _______, _______,
@@ -72,12 +73,42 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   ),
 };
 
+// One-handed Cmd shortcuts. F is the home-row Cmd mod-tap, but Chordal Hold
+// resolves same-hand chords as typing rolls, so F+letter needs explicit
+// combos. Definitions use the mod-tap keycodes (F_MOD/S_MOD) because the
+// combo engine matches on the emitted key event, not the tap keycode.
+const uint16_t PROGMEM cmd_s_combo[] = {F_MOD, S_MOD, COMBO_END};
+const uint16_t PROGMEM cmd_w_combo[] = {F_MOD, KC_W, COMBO_END};
+const uint16_t PROGMEM cmd_t_combo[] = {F_MOD, KC_T, COMBO_END};
+const uint16_t PROGMEM cmd_c_combo[] = {F_MOD, KC_C, COMBO_END};
+const uint16_t PROGMEM cmd_v_combo[] = {F_MOD, KC_V, COMBO_END};
+
+combo_t key_combos[] = {
+    COMBO(cmd_s_combo, LGUI(KC_S)), // save
+    COMBO(cmd_w_combo, LGUI(KC_W)), // close tab
+    COMBO(cmd_t_combo, LGUI(KC_T)), // new tab
+    COMBO(cmd_c_combo, LGUI(KC_C)), // copy
+    COMBO(cmd_v_combo, LGUI(KC_V)), // paste
+};
+
+// "ft" (after/often/software) and "fs" (offset/offspring) are common
+// enough to misfire as quick chords, so those combos require a
+// deliberate hold; the rest fire on a fast chord.
+bool get_combo_must_hold(uint16_t combo_index, combo_t *combo) {
+    return combo->keycode == LGUI(KC_T) || combo->keycode == LGUI(KC_S);
+}
+
 // queuedUpdates/lastKeyPress are defined in oled.c and drive the OLED
 // game of life; this replaces the old fork's process_oled core patch.
+// Runs on the master only; oled.c syncs a keypress count to the slave
+// so its OLED animates too.
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   if (record->event.pressed) {
     queuedUpdates++;
     lastKeyPress = timer_read();
+#ifdef SPLIT_KEYBOARD
+    keypress_count++;
+#endif
   }
 
   return true;
