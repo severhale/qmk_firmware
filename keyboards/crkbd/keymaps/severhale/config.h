@@ -22,6 +22,13 @@
 // RPC channel syncing the master's keypress count to the slave OLED
 #define SPLIT_TRANSACTION_IDS_USER PUT_KEYPRESS_COUNT
 
+// Thumb tap followed within this window by a key press = shifted key
+// instead of backspace (see process_record_user in keymap.c).
+#define TAP_SHIFT_WINDOW 20
+
+// Hold space this long to toggle the NUM layer; tap = space.
+#define SPACE_NUM_TOGGLE_MS 250
+
 // #define NO_ACTION_ONESHOT
 
 #ifdef AUDIO_ENABLE

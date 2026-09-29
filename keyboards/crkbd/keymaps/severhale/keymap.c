@@ -39,11 +39,11 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   //|-----------------------------------------------------|                    |-----------------------------------------------------|
      _______, _______, TG(_COLEMAK),G(S(KC_F9)),S(KC_F6),_______,                _______, _______, _______, _______, _______, _______,
   //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
-     _______, C(S(KC_PWR)),S_MOD,A(KC_F12),_______,A(KC_BSPC),                  KC_LEFT, KC_DOWN, KC_UP,   KC_RIGHT,_______, _______,
+     _______, C(S(KC_PWR)),S_MOD,A(KC_F12),_______,_______,                    KC_LEFT, KC_DOWN, KC_UP,   KC_RIGHT,_______, _______,
   //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
      _______, A(G(C(KC_P))),KC_MNXT,A(S(KC_VOLD)),A(S(KC_VOLU)),_______,        _______, _______, _______, _______, _______, _______,
   //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-                                         XXXXXXX,_______,_______,     KC_ENT,  MO(_NUM),XXXXXXX
+                                         XXXXXXX,_______,QK_CAPS_WORD_TOGGLE,     KC_ENT,  MO(_NUM),XXXXXXX
                                       //|--------------------------|  |--------------------------|
   ),
 
@@ -83,34 +83,54 @@ const uint16_t PROGMEM cmd_t_combo[] = {F_MOD, KC_T, COMBO_END};
 const uint16_t PROGMEM cmd_c_combo[] = {F_MOD, KC_C, COMBO_END};
 const uint16_t PROGMEM cmd_v_combo[] = {F_MOD, KC_V, COMBO_END};
 
-// Caps word: squeeze-and-hold both left thumbs (shift + NAV) for ~0.2s.
-const uint16_t PROGMEM caps_word_combo[] = {SFT_BSPC, OSL(_NAV), COMBO_END};
-
 combo_t key_combos[] = {
     COMBO(cmd_s_combo, LGUI(KC_S)), // save
     COMBO(cmd_w_combo, LGUI(KC_W)), // close tab
     COMBO(cmd_t_combo, LGUI(KC_T)), // new tab
     COMBO(cmd_c_combo, LGUI(KC_C)), // copy
     COMBO(cmd_v_combo, LGUI(KC_V)), // paste
-    COMBO(caps_word_combo, QK_CAPS_WORD_TOGGLE),
 };
 
 // "ft" (after/often/software) and "fs" (offset/offspring) are common
 // enough to misfire as quick chords, so those combos require a
-// deliberate hold; the caps-word toggle likewise demands a deliberate
-// hold so fast shift+nav gestures don't trigger it.
+// deliberate hold; the rest fire on a fast chord.
 bool get_combo_must_hold(uint16_t combo_index, combo_t *combo) {
-    return combo->keycode == LGUI(KC_T) || combo->keycode == LGUI(KC_S) || combo->keycode == QK_CAPS_WORD_TOGGLE;
+    return combo->keycode == LGUI(KC_T) || combo->keycode == LGUI(KC_S);
 }
 
-// Chordal Hold serves the home-row mods well, but the thumb shift must
-// resolve as held even for same-hand keys — the same-hand rule would
-// otherwise turn left-hand shift+letter rolls into backspace taps.
-bool get_chordal_hold(uint16_t tap_hold_keycode, keyrecord_t *tap_hold_record, uint16_t other_keycode, keyrecord_t *other_record) {
-    if (tap_hold_keycode == SFT_BSPC) {
-        return true;
-    }
-    return get_chordal_hold_default(tap_hold_record, other_record);
+// Hold shift (thumb) + space = shift+enter.
+const key_override_t shift_space_to_enter = ko_make_basic(MOD_MASK_SHIFT, KC_SPC, S(KC_ENT));
+const key_override_t *key_overrides[] = {
+    &shift_space_to_enter,
+    NULL,
+};
+
+// Left thumb (SFT_BSPC): hold = shift for any key on either hand; tap =
+// backspace, unless a key lands within TAP_SHIFT_WINDOW ms of the tap,
+// in which case that key is shifted (tap-shift).
+static bool         tap_shift_pending = false;
+static bool         tap_shift_armed   = false;
+static deferred_token tap_shift_token = INVALID_DEFERRED_TOKEN;
+static bool         thumb_down       = false;
+static bool         thumb_shifted    = false;
+static uint16_t     thumb_press_time = 0;
+
+static uint32_t tap_shift_send_backspace(uint32_t trigger_time, void *cb_arg) {
+    tap_shift_token   = INVALID_DEFERRED_TOKEN;
+    tap_shift_pending = false;
+    tap_code(KC_BSPC);
+    return 0;
+}
+
+// Hold space SPACE_NUM_TOGGLE_MS to toggle the NUM layer (sticky, so both
+// hands can type digits without any thumb held); tap = space.
+static deferred_token space_num_token = INVALID_DEFERRED_TOKEN;
+static bool         space_owned      = false;
+
+static uint32_t space_toggle_num(uint32_t trigger_time, void *cb_arg) {
+    space_num_token = INVALID_DEFERRED_TOKEN;
+    layer_invert(_NUM);
+    return 0;
 }
 
 // queuedUpdates/lastKeyPress are defined in oled.c and drive the OLED
@@ -124,6 +144,71 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 #ifdef SPLIT_KEYBOARD
     keypress_count++;
 #endif
+  }
+
+  // A key pressed inside the tap-shift window: shift it instead of
+  // sending the thumb's backspace.
+  if (tap_shift_pending && record->event.pressed && keycode != SFT_BSPC) {
+      tap_shift_pending = false;
+      if (tap_shift_token != INVALID_DEFERRED_TOKEN) {
+          cancel_deferred_exec(tap_shift_token);
+          tap_shift_token = INVALID_DEFERRED_TOKEN;
+      }
+      register_mods(MOD_LSFT);
+      tap_shift_armed = true;
+  } else if (tap_shift_armed && !record->event.pressed) {
+      unregister_mods(MOD_LSFT);
+      tap_shift_armed = false;
+  }
+
+  if (keycode == SFT_BSPC) {
+      if (record->event.pressed) {
+          thumb_down       = true;
+          thumb_shifted    = false;
+          thumb_press_time = timer_read();
+      } else {
+          thumb_down = false;
+          if (thumb_shifted) {
+              unregister_mods(MOD_LSFT);
+          } else if (timer_elapsed(thumb_press_time) < TAPPING_TERM) {
+              // Quick tap: backspace, unless a key arrives within the
+              // tap-shift window.
+              tap_shift_token   = defer_exec(TAP_SHIFT_WINDOW, tap_shift_send_backspace, NULL);
+              tap_shift_pending = tap_shift_token != INVALID_DEFERRED_TOKEN;
+              if (!tap_shift_pending) {
+                  tap_code(KC_BSPC);
+              }
+          }
+          // Held past TAPPING_TERM with no other key: plain shift, nothing to send.
+      }
+      return false;
+  }
+
+  // Any other key pressed while the thumb is held gets shifted.
+  if (thumb_down && record->event.pressed) {
+      thumb_shifted = true;
+      register_mods(MOD_LSFT);
+  }
+
+  // Space: tap = space; hold = toggle the NUM layer. Modified space
+  // (shift+space is overridden to shift+enter) and caps-word termination
+  // pass through natively.
+  if (keycode == KC_SPC && !get_mods() && !is_caps_word_on()) {
+      if (record->event.pressed) {
+          space_num_token = defer_exec(SPACE_NUM_TOGGLE_MS, space_toggle_num, NULL);
+          space_owned     = space_num_token != INVALID_DEFERRED_TOKEN;
+          return !space_owned;
+      }
+      if (!space_owned) {
+          return true;
+      }
+      space_owned = false;
+      if (space_num_token != INVALID_DEFERRED_TOKEN) {
+          cancel_deferred_exec(space_num_token);
+          space_num_token = INVALID_DEFERRED_TOKEN;
+          tap_code(KC_SPC);
+      }
+      return false;
   }
 
   return true;
