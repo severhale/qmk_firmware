@@ -24,6 +24,6 @@ enum custom_keycodes { QWERTY = SAFE_RANGE, LOWER, RAISE, ADJUST, RGBRST };
 
 #define KC_PLAY C(A(LCA(LGUI(LCAG(KC_P)))))
 #define KC_SKIP C(A(LCA(LGUI(LCAG(KC_RIGHT)))))
-#define KC_SLEEP C(S(KC_POWER))
+#define KC_SLEEP C(S(KC_PWR))
 #define VOLUP S(A(KC_VOLU))
 #define VOLDWN S(A(KC_VOLD))
