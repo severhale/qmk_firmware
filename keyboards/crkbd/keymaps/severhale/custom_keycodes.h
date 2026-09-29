@@ -14,10 +14,10 @@ enum layers {
 
 enum custom_keycodes { QWERTY = SAFE_RANGE, LOWER, RAISE, ADJUST, RGBRST };
 
-// Shift is bilateral so either hand's shift can capitalize the other
-// hand's letters (Chordal Hold resolves same-hand chords as taps).
-#define A_MOD MT(MOD_LSFT, KC_A)
-#define SFT_SCLN MT(MOD_RSFT, KC_SCLN)
+// Left thumb shift: tap = backspace, hold = shift. Chordal Hold's
+// same-hand rule is overridden for this key in keymap.c so left-hand
+// letters capitalize too.
+#define SFT_BSPC MT(MOD_LSFT, KC_BSPC)
 
 #define S_MOD MT(MOD_LCTL, KC_S)
 #define D_MOD MT(MOD_LALT, KC_D)

@@ -12,11 +12,11 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   //|-----------------------------------------------------|                    |-----------------------------------------------------|
      XXXXXXX, KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,                         KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    XXXXXXX,
   //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
-     XXXXXXX, A_MOD,   S_MOD,   D_MOD,   F_MOD,   KC_G,                         KC_H,    J_MOD,   K_MOD,   L_MOD,   SFT_SCLN,XXXXXXX,
+     XXXXXXX, KC_A,    S_MOD,   D_MOD,   F_MOD,   KC_G,                         KC_H,    J_MOD,   K_MOD,   L_MOD,   KC_SCLN, XXXXXXX,
   //---------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
      XXXXXXX, KC_Z,    KC_X,    KC_C,    KC_V,    KC_ESC,                       KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  XXXXXXX,
   //---------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-                                         XXXXXXX, OSL(_NAV),KC_BSPC,     KC_SPC,  OSL(_SYM),XXXXXXX
+                                         XXXXXXX, OSL(_NAV),SFT_BSPC,     KC_SPC,  OSL(_SYM),XXXXXXX
                                       //|--------------------------|  |--------------------------|
 
   ),
@@ -39,11 +39,11 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   //|-----------------------------------------------------|                    |-----------------------------------------------------|
      _______, _______, TG(_COLEMAK),G(S(KC_F9)),S(KC_F6),_______,                _______, _______, _______, _______, _______, _______,
   //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
-     _______, C(S(KC_PWR)),S_MOD,A(KC_F12),_______,_______,                    KC_LEFT, KC_DOWN, KC_UP,   KC_RIGHT,_______, _______,
+     _______, C(S(KC_PWR)),S_MOD,A(KC_F12),_______,A(KC_BSPC),                  KC_LEFT, KC_DOWN, KC_UP,   KC_RIGHT,_______, _______,
   //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
      _______, A(G(C(KC_P))),KC_MNXT,A(S(KC_VOLD)),A(S(KC_VOLU)),_______,        _______, _______, _______, _______, _______, _______,
   //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-                                         A(KC_BSPC),_______,_______,     KC_ENT,  MO(_NUM),XXXXXXX
+                                         XXXXXXX,_______,_______,     KC_ENT,  MO(_NUM),XXXXXXX
                                       //|--------------------------|  |--------------------------|
   ),
 
@@ -83,19 +83,34 @@ const uint16_t PROGMEM cmd_t_combo[] = {F_MOD, KC_T, COMBO_END};
 const uint16_t PROGMEM cmd_c_combo[] = {F_MOD, KC_C, COMBO_END};
 const uint16_t PROGMEM cmd_v_combo[] = {F_MOD, KC_V, COMBO_END};
 
+// Caps word: squeeze-and-hold both left thumbs (shift + NAV) for ~0.2s.
+const uint16_t PROGMEM caps_word_combo[] = {SFT_BSPC, OSL(_NAV), COMBO_END};
+
 combo_t key_combos[] = {
     COMBO(cmd_s_combo, LGUI(KC_S)), // save
     COMBO(cmd_w_combo, LGUI(KC_W)), // close tab
     COMBO(cmd_t_combo, LGUI(KC_T)), // new tab
     COMBO(cmd_c_combo, LGUI(KC_C)), // copy
     COMBO(cmd_v_combo, LGUI(KC_V)), // paste
+    COMBO(caps_word_combo, QK_CAPS_WORD_TOGGLE),
 };
 
 // "ft" (after/often/software) and "fs" (offset/offspring) are common
 // enough to misfire as quick chords, so those combos require a
-// deliberate hold; the rest fire on a fast chord.
+// deliberate hold; the caps-word toggle likewise demands a deliberate
+// hold so fast shift+nav gestures don't trigger it.
 bool get_combo_must_hold(uint16_t combo_index, combo_t *combo) {
-    return combo->keycode == LGUI(KC_T) || combo->keycode == LGUI(KC_S);
+    return combo->keycode == LGUI(KC_T) || combo->keycode == LGUI(KC_S) || combo->keycode == QK_CAPS_WORD_TOGGLE;
+}
+
+// Chordal Hold serves the home-row mods well, but the thumb shift must
+// resolve as held even for same-hand keys — the same-hand rule would
+// otherwise turn left-hand shift+letter rolls into backspace taps.
+bool get_chordal_hold(uint16_t tap_hold_keycode, keyrecord_t *tap_hold_record, uint16_t other_keycode, keyrecord_t *other_record) {
+    if (tap_hold_keycode == SFT_BSPC) {
+        return true;
+    }
+    return get_chordal_hold_default(tap_hold_record, other_record);
 }
 
 // queuedUpdates/lastKeyPress are defined in oled.c and drive the OLED
