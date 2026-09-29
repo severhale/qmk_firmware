@@ -16,10 +16,13 @@
 // F+letter one-handed ⌘ chords (see combos in keymap.c). "ft"/"fs" are
 // common bigrams, so those two combos require a short deliberate hold;
 // typing stays safe because releasing either key before this term
-// expires drops the combo back to plain letters.
+// expires drops the combo back to plain letters. Combos are also
+// order-sensitive: F must be pressed first (it's the cmd anchor), so
+// reversed bigrams like "awful" (w→f) or "cfg" (c→f) never fire them.
 #define COMBO_TERM 50
 #define COMBO_HOLD_TERM 100
 #define COMBO_MUST_HOLD_PER_COMBO
+#define COMBO_MUST_PRESS_IN_ORDER
 
 // RPC channel syncing the master's keypress count to the slave OLED
 #define SPLIT_TRANSACTION_IDS_USER PUT_KEYPRESS_COUNT
