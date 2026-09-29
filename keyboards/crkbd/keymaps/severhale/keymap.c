@@ -47,7 +47,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                                       //|--------------------------|  |--------------------------|
   ),
 
-  // SYM: LL position = NUM, backspace position = one-shot shift
+  // SYM: LL position = NUM, backspace position = shift (tap = one-shot, hold = held)
   [_SYM] = LAYOUT_split_3x6_3(
   //|-----------------------------------------------------|                    |-----------------------------------------------------|
      _______, KC_TILD, KC_PIPE, KC_DQUO, KC_QUES, _______,                      _______, KC_LBRC,  KC_RBRC,  KC_MINUS,KC_EQUAL,_______,
@@ -56,7 +56,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
      _______, KC_GRV,  KC_BSLS, KC_QUOT, KC_SLSH, _______,                      _______, KC_LPRN,  KC_RPRN,  KC_UNDS, KC_PLUS, _______,
   //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-                                         XXXXXXX, MO(_NUM),OSM(MOD_LSFT),     _______, _______, XXXXXXX
+                                         XXXXXXX, MO(_NUM),THUMB_SHIFT,     _______, _______, XXXXXXX
                                       //|--------------------------|  |--------------------------|
   ),
 
@@ -111,20 +111,45 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 #endif
   }
 
-  // One-shot mods don't consume one-shot layers, so the SYM one-shot
-  // from RL would survive the shift key and hit the next keypress as a
-  // symbol. End the layer one-shot as soon as the shift OSM fires.
-  // clear_oneshot_layer_state (unlike reset_oneshot_layer) also turns the
-  // layer off, so it cannot be orphaned on.
-  if (keycode == OSM(MOD_LSFT) && record->event.pressed) {
-      clear_oneshot_layer_state((oneshot_fullfillment_t)(ONESHOT_START | ONESHOT_TOGGLED));
+  // RL+BSPC shift (THUMB_SHIFT, on the SYM layer): the press registers
+  // real shift immediately — hold it for runs of capitals; a release with
+  // no key pressed in between converts to a one-shot so the next key is
+  // capitalized. The SYM layer is torn down on press (bit off + tracking
+  // cleared together, so it can't be orphaned) and the next key lands on
+  // the base layer.
+  static bool thumb_shift_held = false;
+  static bool thumb_shift_used = false;
+
+  if (keycode == THUMB_SHIFT) {
+      if (record->event.pressed) {
+          thumb_shift_held = true;
+          thumb_shift_used = false;
+          register_mods(MOD_LSFT);
+          layer_off(_SYM);
+          reset_oneshot_layer();
+      } else {
+          thumb_shift_held = false;
+          unregister_mods(MOD_LSFT);
+          if (!thumb_shift_used) {
+              set_oneshot_mods(MOD_LSFT);
+          }
+      }
+      return false;
   }
 
-  // Shift + space = shift+enter (shift comes from RL+BSPC — OSM tap,
-  // armed one-shot, or held; other mod+space passes through natively).
-  if (keycode == KC_SPC && record->event.pressed && ((get_mods() | get_oneshot_mods()) & MOD_MASK_SHIFT)) {
+  // While the thumb shift is held, space as the FIRST key pressed sends
+  // shift+enter (hold shift, tap space = newline). Any later space is a
+  // plain space so caps sentences keep their word gaps; mid-paragraph
+  // shift+enter stays available via LL+space, whose enter dispatch
+  // carries the held shift natively.
+  if (keycode == KC_SPC && record->event.pressed && thumb_shift_held && !thumb_shift_used) {
+      thumb_shift_used = true;
       tap_code16(S(KC_ENT));
       return false;
+  }
+
+  if (thumb_shift_held && record->event.pressed) {
+      thumb_shift_used = true;
   }
 
   return true;

@@ -18,6 +18,10 @@ enum custom_keycodes {
     RAISE,
     ADJUST,
     RGBRST,
+    // SYM-layer backspace position (RL+BSPC): press = real shift while
+    // held, quick release = one-shot shift for the next key. Owned by
+    // process_record_user in keymap.c.
+    THUMB_SHIFT,
 };
 
 #define S_MOD MT(MOD_LCTL, KC_S)
