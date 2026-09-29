@@ -28,8 +28,9 @@
 // the previous character as backspace instead of capitalizing.
 #define TAP_SHIFT_WINDOW 60
 
-// Hold space this long to toggle the NUM layer; tap = space.
-#define SPACE_NUM_TOGGLE_MS 250
+// Per-key permissive-hold override (keymap.c disables it for the space
+// layer-tap so fast typing rolls never engage the NUM layer).
+#define PERMISSIVE_HOLD_PER_KEY
 
 // #define NO_ACTION_ONESHOT
 

@@ -16,7 +16,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   //---------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
      XXXXXXX, KC_Z,    KC_X,    KC_C,    KC_V,    KC_ESC,                       KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  XXXXXXX,
   //---------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-                                         XXXXXXX, OSL(_NAV),SFT_BSPC,     KC_SPC,  OSL(_SYM),XXXXXXX
+                                         XXXXXXX, OSL(_NAV),SFT_BSPC,     NUM_SPC, OSL(_SYM),XXXXXXX
                                       //|--------------------------|  |--------------------------|
 
   ),
@@ -98,12 +98,24 @@ bool get_combo_must_hold(uint16_t combo_index, combo_t *combo) {
     return combo->keycode == LGUI(KC_T) || combo->keycode == LGUI(KC_S);
 }
 
-// Hold shift (thumb) + space = shift+enter.
-const key_override_t shift_space_to_enter = ko_make_basic(MOD_MASK_SHIFT, KC_SPC, S(KC_ENT));
-const key_override_t *key_overrides[] = {
-    &shift_space_to_enter,
-    NULL,
-};
+// The space thumb (NUM_SPC) must settle as a tap when interrupted by
+// typing rolls — chordal/permissive would otherwise read space+letter
+// as a hold and swallow the space mid-word. Holding it past
+// TAPPING_TERM (250ms, same as every other tap/hold key) activates the
+// NUM layer.
+bool get_chordal_hold(uint16_t tap_hold_keycode, keyrecord_t *tap_hold_record, uint16_t other_keycode, keyrecord_t *other_record) {
+    if (tap_hold_keycode == NUM_SPC) {
+        return false;
+    }
+    return get_chordal_hold_default(tap_hold_record, other_record);
+}
+
+bool get_permissive_hold(uint16_t keycode, keyrecord_t *record) {
+    if (keycode == NUM_SPC) {
+        return false;
+    }
+    return true;
+}
 
 // Left thumb (SFT_BSPC): hold = shift for any key on either hand; tap =
 // backspace, unless a key lands within TAP_SHIFT_WINDOW ms of the tap,
@@ -121,29 +133,6 @@ static uint32_t tap_shift_send_backspace(uint32_t trigger_time, void *cb_arg) {
     tap_shift_token   = INVALID_DEFERRED_TOKEN;
     tap_shift_pending = false;
     tap_code(KC_BSPC);
-    return 0;
-}
-
-// Hold space SPACE_NUM_TOGGLE_MS to toggle the NUM layer (sticky, so both
-// hands can type digits without any thumb held). The space is sent
-// immediately on press so fast rolls order correctly; if the hold
-// completes, it is erased with a backspace. Any other key press during
-// the hold cancels the toggle and ends the space.
-static bool           space_keydown  = false;
-static deferred_token space_num_token = INVALID_DEFERRED_TOKEN;
-
-static void space_end_keydown(void) {
-    if (space_keydown) {
-        space_keydown = false;
-        unregister_code(KC_SPC);
-    }
-}
-
-static uint32_t space_toggle_num(uint32_t trigger_time, void *cb_arg) {
-    space_num_token = INVALID_DEFERRED_TOKEN;
-    space_end_keydown();
-    tap_code(KC_BSPC);
-    layer_invert(_NUM);
     return 0;
 }
 
@@ -173,14 +162,6 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   } else if (tap_shift_armed && !record->event.pressed) {
       unregister_mods(MOD_LSFT);
       tap_shift_armed = false;
-  }
-
-  // Any other key press cancels a pending hold-space NUM toggle; the
-  // already-sent space stays and its keyup goes out before this key.
-  if (space_num_token != INVALID_DEFERRED_TOKEN && record->event.pressed && keycode != KC_SPC) {
-      cancel_deferred_exec(space_num_token);
-      space_num_token = INVALID_DEFERRED_TOKEN;
-      space_end_keydown();
   }
 
   if (keycode == SFT_BSPC) {
@@ -230,20 +211,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       register_mods(MOD_LSFT);
   }
 
-  // Space: sent on press so rolls order correctly; hold = toggle the NUM
-  // layer. Modified space (shift+space is overridden to shift+enter) and
-  // caps-word termination pass through natively.
-  if (keycode == KC_SPC && !get_mods() && !is_caps_word_on()) {
+  // Space with mods held bypasses the layer-tap: thumb shift + space =
+  // shift+enter; other mod+space (cmd+space etc.) = plain space tap.
+  if (keycode == NUM_SPC && get_mods()) {
       if (record->event.pressed) {
-          space_keydown  = true;
-          register_code(KC_SPC);
-          space_num_token = defer_exec(SPACE_NUM_TOGGLE_MS, space_toggle_num, NULL);
-      } else {
-          if (space_num_token != INVALID_DEFERRED_TOKEN) {
-              cancel_deferred_exec(space_num_token);
-              space_num_token = INVALID_DEFERRED_TOKEN;
+          if (get_mods() & MOD_MASK_SHIFT) {
+              tap_code(KC_ENT);
+          } else {
+              tap_code(KC_SPC);
           }
-          space_end_keydown();
       }
       return false;
   }
