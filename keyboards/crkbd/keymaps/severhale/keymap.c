@@ -73,30 +73,24 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   ),
 };
 
-// One-handed Cmd shortcuts. F is the home-row Cmd mod-tap, but Chordal Hold
-// resolves same-hand chords as typing rolls, so F+letter needs explicit
-// combos. Definitions use the mod-tap keycodes (F_MOD/S_MOD) because the
-// combo engine matches on the emitted key event, not the tap keycode.
-const uint16_t PROGMEM cmd_s_combo[] = {F_MOD, S_MOD, COMBO_END};
-const uint16_t PROGMEM cmd_w_combo[] = {F_MOD, KC_W, COMBO_END};
-const uint16_t PROGMEM cmd_t_combo[] = {F_MOD, KC_T, COMBO_END};
-const uint16_t PROGMEM cmd_c_combo[] = {F_MOD, KC_C, COMBO_END};
-const uint16_t PROGMEM cmd_v_combo[] = {F_MOD, KC_V, COMBO_END};
-
-combo_t key_combos[] = {
-    COMBO(cmd_s_combo, LGUI(KC_S)), // save
-    COMBO(cmd_w_combo, LGUI(KC_W)), // close tab
-    COMBO(cmd_t_combo, LGUI(KC_T)), // new tab
-    COMBO(cmd_c_combo, LGUI(KC_C)), // copy
-    COMBO(cmd_v_combo, LGUI(KC_V)), // paste
-};
-
-// "ft" (after/often/software) and "fs" (offset/offspring) are common
-// enough to misfire as quick chords, so those combos require a
-// deliberate hold; the rest fire on a fast chord.
-bool get_combo_must_hold(uint16_t combo_index, combo_t *combo) {
-    return combo->keycode == LGUI(KC_T) || combo->keycode == LGUI(KC_S);
+// F is a real Cmd modifier rather than a chord key: get_tapping_term
+// gives F its own short window (F_CMD_HOLD_MS), so holding it that long
+// settles F as LGUI on its own and any key pressed afterward (either
+// hand, repeatedly — two T taps for two tabs) dispatches instantly with
+// Cmd. Shorter F-to-key intervals are typing rolls and stay plain
+// letters via Chordal Hold's same-hand rule.
+uint16_t get_tapping_term(uint16_t keycode, keyrecord_t *record) {
+    if (keycode == F_MOD) {
+        return F_CMD_HOLD_MS;
+    }
+    return TAPPING_TERM;
 }
+
+// A lone F pressed slowly (held past the anchor with no other key)
+// settles as a bare held modifier and types nothing. This fork has no
+// standalone RETRO_TAPPING, so send the "f" tap manually on release.
+static bool     f_cmd_lone_press = false;
+static uint16_t f_cmd_press_time = 0;
 
 // queuedUpdates/lastKeyPress are defined in oled.c and drive the OLED
 // game of life; this replaces the old fork's process_oled core patch.
@@ -109,6 +103,19 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 #ifdef SPLIT_KEYBOARD
     keypress_count++;
 #endif
+  }
+
+  // Retro-tap tracking for a slowly-pressed lone F (see above).
+  if (record->event.pressed) {
+      if (keycode == F_MOD) {
+          f_cmd_lone_press = true;
+          f_cmd_press_time = record->event.time;
+      } else {
+          f_cmd_lone_press = false;
+      }
+  } else if (keycode == F_MOD && f_cmd_lone_press && timer_elapsed(f_cmd_press_time) >= F_CMD_HOLD_MS) {
+      f_cmd_lone_press = false;
+      tap_code(KC_F);
   }
 
   // RL+BSPC shift (THUMB_SHIFT, on the SYM layer): the press registers
