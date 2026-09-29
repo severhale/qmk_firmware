@@ -14,9 +14,11 @@
 #define CHORDAL_HOLD
 
 // F+letter one-handed ⌘ chords (see combos in keymap.c). "ft"/"fs" are
-// common bigrams, so those two combos must be held deliberately.
+// common bigrams, so those two combos require a short deliberate hold;
+// typing stays safe because releasing either key before this term
+// expires drops the combo back to plain letters.
 #define COMBO_TERM 50
-#define COMBO_HOLD_TERM 200
+#define COMBO_HOLD_TERM 100
 #define COMBO_MUST_HOLD_PER_COMBO
 
 // RPC channel syncing the master's keypress count to the slave OLED
