@@ -18,18 +18,7 @@ enum custom_keycodes {
     RAISE,
     ADJUST,
     RGBRST,
-    // Left thumb: hold = shift (any key, both hands), tap = backspace,
-    // tap followed within TAP_SHIFT_WINDOW ms by a key = shifted key,
-    // double-tap-and-hold = backspace repeat. Owned by
-    // process_record_user in keymap.c.
-    SFT_BSPC,
 };
-
-// Right thumb: tap = space; hold = NUM layer (momentary, mirroring the
-// shift thumb's hold). keymap.c overrides get_chordal_hold and
-// get_permissive_hold for this key so typing rolls resolve as spaces
-// instead of engaging the layer.
-#define NUM_SPC LT(_NUM, KC_SPC)
 
 #define S_MOD MT(MOD_LCTL, KC_S)
 #define D_MOD MT(MOD_LALT, KC_D)

@@ -22,16 +22,6 @@
 // RPC channel syncing the master's keypress count to the slave OLED
 #define SPLIT_TRANSACTION_IDS_USER PUT_KEYPRESS_COUNT
 
-// Thumb tap followed within this window by a key press = shifted key
-// instead of backspace (see process_record_user in keymap.c). 20ms
-// proved tighter than natural thumb-to-letter rebound; misses erased
-// the previous character as backspace instead of capitalizing.
-#define TAP_SHIFT_WINDOW 60
-
-// Per-key permissive-hold override (keymap.c disables it for the space
-// layer-tap so fast typing rolls never engage the NUM layer).
-#define PERMISSIVE_HOLD_PER_KEY
-
 // #define NO_ACTION_ONESHOT
 
 #ifdef AUDIO_ENABLE
