@@ -111,6 +111,13 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 #endif
   }
 
+  // One-shot mods don't consume one-shot layers, so the SYM one-shot
+  // from RL would survive the shift key and hit the next keypress as a
+  // symbol. End the layer one-shot as soon as the shift OSM fires.
+  if (keycode == OSM(MOD_LSFT) && record->event.pressed) {
+      reset_oneshot_layer();
+  }
+
   // Shift + space = shift+enter (shift comes from RL+BSPC — OSM tap,
   // armed one-shot, or held; other mod+space passes through natively).
   if (keycode == KC_SPC && record->event.pressed && ((get_mods() | get_oneshot_mods()) & MOD_MASK_SHIFT)) {
