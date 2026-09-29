@@ -19,8 +19,9 @@ enum custom_keycodes {
     ADJUST,
     RGBRST,
     // Left thumb: hold = shift (any key, both hands), tap = backspace,
-    // tap followed within TAP_SHIFT_WINDOW ms by a key = shifted key.
-    // Owned by process_record_user in keymap.c.
+    // tap followed within TAP_SHIFT_WINDOW ms by a key = shifted key,
+    // double-tap-and-hold = backspace repeat. Owned by
+    // process_record_user in keymap.c.
     SFT_BSPC,
 };
 

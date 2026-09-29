@@ -114,6 +114,8 @@ static deferred_token tap_shift_token = INVALID_DEFERRED_TOKEN;
 static bool         thumb_down       = false;
 static bool         thumb_shifted    = false;
 static uint16_t     thumb_press_time = 0;
+static bool         thumb_repeating  = false;
+static uint16_t     thumb_last_release = 0;
 
 static uint32_t tap_shift_send_backspace(uint32_t trigger_time, void *cb_arg) {
     tap_shift_token   = INVALID_DEFERRED_TOKEN;
@@ -123,12 +125,24 @@ static uint32_t tap_shift_send_backspace(uint32_t trigger_time, void *cb_arg) {
 }
 
 // Hold space SPACE_NUM_TOGGLE_MS to toggle the NUM layer (sticky, so both
-// hands can type digits without any thumb held); tap = space.
+// hands can type digits without any thumb held). The space is sent
+// immediately on press so fast rolls order correctly; if the hold
+// completes, it is erased with a backspace. Any other key press during
+// the hold cancels the toggle and ends the space.
+static bool           space_keydown  = false;
 static deferred_token space_num_token = INVALID_DEFERRED_TOKEN;
-static bool         space_owned      = false;
+
+static void space_end_keydown(void) {
+    if (space_keydown) {
+        space_keydown = false;
+        unregister_code(KC_SPC);
+    }
+}
 
 static uint32_t space_toggle_num(uint32_t trigger_time, void *cb_arg) {
     space_num_token = INVALID_DEFERRED_TOKEN;
+    space_end_keydown();
+    tap_code(KC_BSPC);
     layer_invert(_NUM);
     return 0;
 }
@@ -161,25 +175,51 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       tap_shift_armed = false;
   }
 
+  // Any other key press cancels a pending hold-space NUM toggle; the
+  // already-sent space stays and its keyup goes out before this key.
+  if (space_num_token != INVALID_DEFERRED_TOKEN && record->event.pressed && keycode != KC_SPC) {
+      cancel_deferred_exec(space_num_token);
+      space_num_token = INVALID_DEFERRED_TOKEN;
+      space_end_keydown();
+  }
+
   if (keycode == SFT_BSPC) {
       if (record->event.pressed) {
-          thumb_down       = true;
-          thumb_shifted    = false;
-          thumb_press_time = timer_read();
-      } else {
-          thumb_down = false;
-          if (thumb_shifted) {
-              unregister_mods(MOD_LSFT);
-          } else if (timer_elapsed(thumb_press_time) < TAPPING_TERM) {
-              // Quick tap: backspace, unless a key arrives within the
-              // tap-shift window.
-              tap_shift_token   = defer_exec(TAP_SHIFT_WINDOW, tap_shift_send_backspace, NULL);
-              tap_shift_pending = tap_shift_token != INVALID_DEFERRED_TOKEN;
-              if (!tap_shift_pending) {
-                  tap_code(KC_BSPC);
+          if (timer_elapsed(thumb_last_release) < TAPPING_TERM) {
+              // Double-tap: hold to repeat backspace (native key repeat).
+              thumb_repeating = true;
+              if (tap_shift_pending) {
+                  cancel_deferred_exec(tap_shift_token);
+                  tap_shift_token   = INVALID_DEFERRED_TOKEN;
+                  tap_shift_pending = false;
               }
+              register_code(KC_BSPC);
+          } else {
+              thumb_repeating = false;
+              thumb_down       = true;
+              thumb_shifted    = false;
+              thumb_press_time = timer_read();
           }
-          // Held past TAPPING_TERM with no other key: plain shift, nothing to send.
+      } else {
+          thumb_last_release = timer_read();
+          if (thumb_repeating) {
+              thumb_repeating = false;
+              unregister_code(KC_BSPC);
+          } else {
+              thumb_down = false;
+              if (thumb_shifted) {
+                  unregister_mods(MOD_LSFT);
+              } else if (timer_elapsed(thumb_press_time) < TAPPING_TERM) {
+                  // Quick tap: backspace, unless a key arrives within the
+                  // tap-shift window.
+                  tap_shift_token   = defer_exec(TAP_SHIFT_WINDOW, tap_shift_send_backspace, NULL);
+                  tap_shift_pending = tap_shift_token != INVALID_DEFERRED_TOKEN;
+                  if (!tap_shift_pending) {
+                      tap_code(KC_BSPC);
+                  }
+              }
+              // Held past TAPPING_TERM with no other key: plain shift, nothing to send.
+          }
       }
       return false;
   }
@@ -190,23 +230,20 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       register_mods(MOD_LSFT);
   }
 
-  // Space: tap = space; hold = toggle the NUM layer. Modified space
-  // (shift+space is overridden to shift+enter) and caps-word termination
-  // pass through natively.
+  // Space: sent on press so rolls order correctly; hold = toggle the NUM
+  // layer. Modified space (shift+space is overridden to shift+enter) and
+  // caps-word termination pass through natively.
   if (keycode == KC_SPC && !get_mods() && !is_caps_word_on()) {
       if (record->event.pressed) {
+          space_keydown  = true;
+          register_code(KC_SPC);
           space_num_token = defer_exec(SPACE_NUM_TOGGLE_MS, space_toggle_num, NULL);
-          space_owned     = space_num_token != INVALID_DEFERRED_TOKEN;
-          return !space_owned;
-      }
-      if (!space_owned) {
-          return true;
-      }
-      space_owned = false;
-      if (space_num_token != INVALID_DEFERRED_TOKEN) {
-          cancel_deferred_exec(space_num_token);
-          space_num_token = INVALID_DEFERRED_TOKEN;
-          tap_code(KC_SPC);
+      } else {
+          if (space_num_token != INVALID_DEFERRED_TOKEN) {
+              cancel_deferred_exec(space_num_token);
+              space_num_token = INVALID_DEFERRED_TOKEN;
+          }
+          space_end_keydown();
       }
       return false;
   }

@@ -23,8 +23,10 @@
 #define SPLIT_TRANSACTION_IDS_USER PUT_KEYPRESS_COUNT
 
 // Thumb tap followed within this window by a key press = shifted key
-// instead of backspace (see process_record_user in keymap.c).
-#define TAP_SHIFT_WINDOW 20
+// instead of backspace (see process_record_user in keymap.c). 20ms
+// proved tighter than natural thumb-to-letter rebound; misses erased
+// the previous character as backspace instead of capitalizing.
+#define TAP_SHIFT_WINDOW 60
 
 // Hold space this long to toggle the NUM layer; tap = space.
 #define SPACE_NUM_TOGGLE_MS 250
